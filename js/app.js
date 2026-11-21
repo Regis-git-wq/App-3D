@@ -520,6 +520,27 @@ class App {
     onBind?.($('#modalBody'));
   }
 
+  // Diálogo próprio (substitui prompt/confirm). Retorna o texto digitado, true, ou null se cancelar.
+  ask(title, { value, type = 'text', text = '', ok = 'OK', danger = false } = {}) {
+    return new Promise((resolve) => {
+      const d = $('#dialog');
+      const hasInput = value !== undefined;
+      $('#dialogBody').innerHTML = `
+        <h2>${esc(title)}</h2>
+        ${text ? `<p class="muted">${esc(text)}</p>` : ''}
+        ${hasInput ? `<input id="dialogInput" class="dialog-input" type="${type}" ${type === 'number' ? 'inputmode="decimal"' : ''} value="${esc(value)}">` : ''}
+        <div class="btn-row"><button class="btn" id="dialogCancel">Cancelar</button><button class="btn ${danger ? 'danger' : 'primary'}" id="dialogOk">${esc(ok)}</button></div>`;
+      d.classList.remove('hidden');
+      const inp = $('#dialogInput');
+      if (inp) { inp.focus(); inp.select(); }
+      const done = (v) => { d.classList.add('hidden'); $('#dialogBody').innerHTML = ''; resolve(v); };
+      $('#dialogOk').onclick = () => done(hasInput ? (inp.value.trim() || null) : true);
+      $('#dialogCancel').onclick = () => done(null);
+      d.querySelector('.modal-back').onclick = () => done(null);
+      if (inp) inp.onkeydown = (e) => { if (e.key === 'Enter') $('#dialogOk').click(); };
+    });
+  }
+
   closeModal() {
     $('#modal').classList.add('hidden');
     $('#modalBody').innerHTML = '';
@@ -542,7 +563,7 @@ class App {
         ${item('new', '<path d="M12 5v14M5 12h14"/>', 'Novo projeto em branco')}
         ${item('help', '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 015 0c0 2-2.5 2-2.5 4M12 17h.01"/>', 'Como usar')}
       </div>`, (el) => {
-      el.onclick = (e) => {
+      el.onclick = async (e) => {
         const b = e.target.closest('[data-m]');
         if (!b) return;
         const m = b.dataset.m;
@@ -551,18 +572,18 @@ class App {
         this.closeModal();
         if (m === 'fit') this.plan2d.fit();
         if (m === 'height') {
-          const v = num(prompt('Pé-direito padrão (cm):', cm(this.plan.wallHeight)));
+          const v = num(await this.ask('Pé-direito padrão (cm)', { value: cm(this.plan.wallHeight), type: 'number' }));
           if (v > 100) { this.beginEdit(); this.plan.wallHeight = v / 100; this.changed(); }
         }
         if (m === 'png') this.saveImage();
         if (m === 'export') this.exportFile();
         if (m === 'import') $('#fileInput').click();
         if (m === 'rename') {
-          const n = prompt('Nome do projeto:', this.project.name);
+          const n = await this.ask('Nome do projeto', { value: this.project.name });
           if (n) { this.project.name = n.trim(); this.save(); }
         }
         if (m === 'new' || m === 'sample') {
-          if (!confirm('Começar um novo projeto? O atual será substituído (exporte antes se quiser guardar).')) return;
+          if (!await this.ask('Começar um novo projeto?', { text: 'O projeto atual será substituído. Exporte antes se quiser guardar.', ok: 'Começar', danger: true })) return;
           this.project = newProject(m === 'sample');
           this.undoStack = []; this.redoStack = []; this.selection = null;
           this.plan2d.endChain();
@@ -593,7 +614,7 @@ class App {
       </div>
       ${sc.length > 1 ? `<div class="btn-row"><button class="btn" data-s="compare">Comparar cenários</button></div>` : ''}`;
     this.openModal(render(), (el) => {
-      el.onclick = (e) => {
+      el.onclick = async (e) => {
         const b = e.target.closest('[data-s]');
         if (!b) return;
         const id = b.closest('[data-id]')?.dataset.id;
@@ -601,7 +622,7 @@ class App {
         const act = b.dataset.s;
         if (act === 'open') { this.switchScenario(id); this.closeModal(); }
         if (act === 'dupActive') {
-          const n = prompt('Nome do novo cenário:', `Reforma ${String.fromCharCode(64 + sc.length)}`);
+          const n = await this.ask('Nome do novo cenário', { value: `Reforma ${String.fromCharCode(64 + sc.length)}`, ok: 'Criar' });
           if (!n) return;
           const copy = { id: uid(), name: n.trim(), plan: clonePlan(this.plan) };
           sc.push(copy);
@@ -610,11 +631,11 @@ class App {
           this.toast('Cenário criado. Paredes novas serão marcadas como "Construir".');
         }
         if (act === 'rename') {
-          const n = prompt('Nome do cenário:', s.name);
+          const n = await this.ask('Nome do cenário', { value: s.name });
           if (n) { s.name = n.trim(); this.save(); $('#scenarioName').textContent = this.scenario.name; el.innerHTML = render(); }
         }
         if (act === 'del') {
-          if (!confirm(`Excluir o cenário "${s.name}"?`)) return;
+          if (!await this.ask(`Excluir o cenário "${s.name}"?`, { text: 'Essa ação não pode ser desfeita.', ok: 'Excluir', danger: true })) return;
           this.project.scenarios = sc.filter((x) => x.id !== id);
           if (this.project.activeId === id) this.project.activeId = this.project.scenarios[0].id;
           this.save(); this.closeModal(); this.switchScenario(this.project.activeId);

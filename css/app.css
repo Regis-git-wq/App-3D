@@ -186,3 +186,6 @@ table.q th { color: var(--muted); font-weight: 600; font-size: 12px; }
 .ar-link { display: flex; align-items: center; justify-content: center; gap: 10px; text-decoration: none; background: var(--ink); color: #fff; padding: 14px; border-radius: 12px; font-weight: 600; }
 .ar-link img { width: 0; height: 0; }
 a.btn { color: inherit; }
+.modal.dialog { z-index: 30; }
+#dialogBody { padding: 4px 16px 16px; }
+.dialog-input { width: 100%; border: 0; background: #f1eee8; border-radius: 10px; padding: 12px; font-size: 17px; outline: none; }
