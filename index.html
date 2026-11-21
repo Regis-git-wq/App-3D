@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Reforma 3D</title>
+  <meta name="description" content="Mapeie seu apartamento e simule a reforma em 2D, 3D e realidade aumentada.">
+  <meta name="theme-color" content="#f4f2ee">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Reforma 3D">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/app.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three/build/three.module.min.js",
+        "three/addons/": "./vendor/three/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <button class="icon-btn" id="btnMenu" aria-label="Menu">
+        <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <button class="scenario-chip" id="btnScenario">
+        <span id="scenarioName">Cenário</span>
+        <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+      </button>
+      <div class="spacer"></div>
+      <button class="icon-btn" id="btnUndo" aria-label="Desfazer">
+        <svg viewBox="0 0 24 24"><path d="M9 7L4 12l5 5M4 12h10a6 6 0 010 12" transform="translate(0 -3)"/></svg>
+      </button>
+      <button class="icon-btn" id="btnRedo" aria-label="Refazer">
+        <svg viewBox="0 0 24 24"><path d="M15 7l5 5-5 5M20 12H10a6 6 0 000 12" transform="translate(0 -3)"/></svg>
+      </button>
+      <div class="seg" id="viewSeg">
+        <button data-view="2d" class="on">2D</button>
+        <button data-view="3d">3D</button>
+      </div>
+    </header>
+
+    <main class="stage">
+      <div id="view2d" class="view"><canvas id="planCanvas"></canvas></div>
+      <div id="view3d" class="view hidden"></div>
+
+      <div id="hint" class="hint hidden"></div>
+
+      <!-- controles 3D -->
+      <div id="ctrl3d" class="float-col hidden">
+        <button class="fab" id="btnFrame" title="Enquadrar"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg><span>Enquadrar</span></button>
+        <button class="fab" id="btnTop" title="Vista de cima"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/><path d="M5 12h14M12 5v14"/></svg><span>De cima</span></button>
+        <button class="fab" id="btnWalk" title="Caminhar"><svg viewBox="0 0 24 24"><circle cx="13" cy="4.5" r="1.8"/><path d="M10 21l2-6 3 3v3M12 15l-1-5 4 1 2 3M11 10l-3 2-1 3"/></svg><span>Caminhar</span></button>
+        <button class="fab" id="btnDemo" title="Mostrar demolições"><svg viewBox="0 0 24 24"><path d="M4 20h16M6 20V9h12v11M9 9V5h6v4M4 4l16 16"/></svg><span>Demolições</span></button>
+        <button class="fab accent" id="btnAR" title="Ver em realidade aumentada"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg><span>AR</span></button>
+      </div>
+      <div id="joystick" class="joystick hidden"><div class="knob"></div></div>
+
+      <!-- painel da ferramenta parede -->
+      <div id="wallPanel" class="wall-panel hidden">
+        <div class="wp-row" id="wpStart">
+          <span class="muted">Toque/arraste na planta para marcar o 1º canto.</span>
+          <button class="btn small" id="wpOrigin">Começar em 0,0</button>
+        </div>
+        <div class="wp-row hidden" id="wpChain">
+          <label class="len">
+            <input id="wpLen" type="number" inputmode="decimal" placeholder="Medida" min="1">
+            <span>cm</span>
+          </label>
+          <div class="arrows">
+            <button data-deg="270" aria-label="Para cima">↑</button>
+            <button data-deg="180" aria-label="Para a esquerda">←</button>
+            <button data-deg="0" aria-label="Para a direita">→</button>
+            <button data-deg="90" aria-label="Para baixo">↓</button>
+          </div>
+        </div>
+        <div class="wp-row hidden" id="wpChainActions">
+          <button class="btn small" id="wpClose">Fechar cômodo</button>
+          <button class="btn small primary" id="wpDone">Concluir</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- painel de propriedades -->
+    <section id="props" class="sheet props hidden">
+      <div class="grab" id="propsGrab"></div>
+      <div id="propsBody"></div>
+    </section>
+
+    <nav class="toolbar" id="toolbar">
+      <button data-tool="select" class="on"><svg viewBox="0 0 24 24"><path d="M6 3l12 9-5.5 1L15 20l-2.5 1-2.5-7L6 17z"/></svg><span>Selecionar</span></button>
+      <button data-tool="wall"><svg viewBox="0 0 24 24"><path d="M3 20V8h8V4h10v16z"/></svg><span>Parede</span></button>
+      <button data-tool="room"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14"/><path d="M8 9h4"/></svg><span>Cômodo</span></button>
+      <button data-tool="door"><svg viewBox="0 0 24 24"><path d="M4 20h4V6M8 6a14 14 0 0112 14"/></svg><span>Porta</span></button>
+      <button data-tool="window"><svg viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="6"/><path d="M4 12h16"/></svg><span>Janela</span></button>
+      <button data-tool="passage"><svg viewBox="0 0 24 24"><path d="M3 12h5M16 12h5M8 9v6M16 9v6" /></svg><span>Vão</span></button>
+      <button data-tool="item"><svg viewBox="0 0 24 24"><path d="M4 18v-5a2 2 0 012-2h12a2 2 0 012 2v5M6 11V8a2 2 0 012-2h8a2 2 0 012 2v3M4 18h16M5 18v2M19 18v2"/></svg><span>Móvel</span></button>
+    </nav>
+  </div>
+
+  <!-- folhas modais -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-back" data-close></div>
+    <div class="sheet modal-sheet">
+      <div class="grab"></div>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <input type="file" id="fileInput" accept="application/json,.json" hidden>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
