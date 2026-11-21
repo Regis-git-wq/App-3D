@@ -438,3 +438,64 @@ export function detectRooms(plan) {
   plan.rooms = result;
   return changed;
 }
+
+// ---------- solda de cômodos encostados ----------
+// Une cantos próximos, divide paredes onde um canto encosta nelas e remove paredes duplicadas.
+// Usado depois de arrastar um cômodo até outro ou de adicionar um cômodo mapeado por foto.
+export function weldPlan(plan, tol = 0.06) {
+  const replace = (from, to) => {
+    for (const w of plan.walls) { if (w.a === from) w.a = to; if (w.b === from) w.b = to; }
+    for (const r of plan.rooms) r.pts = r.pts.map((p) => (p === from ? to : p)).filter((p, i, arr) => p !== arr[(i + 1) % arr.length] || arr.length === 1);
+    plan.points = plan.points.filter((p) => p.id !== from);
+  };
+  // 1) cantos próximos
+  for (let i = 0; i < plan.points.length; i++) {
+    for (let j = i + 1; j < plan.points.length; j++) {
+      const a = plan.points[i], b = plan.points[j];
+      if (Math.hypot(a.x - b.x, a.y - b.y) < tol) { replace(b.id, a.id); j--; }
+    }
+  }
+  // 2) canto encostado no meio de uma parede
+  let guard = 0, changed = true;
+  while (changed && guard++ < 200) {
+    changed = false;
+    outer: for (const p of plan.points) {
+      for (const w of plan.walls) {
+        if (w.a === p.id || w.b === p.id) continue;
+        const [a, b] = wallEnds(plan, w);
+        const pr = projectOnSegment(p, a, b);
+        const L = Math.hypot(b.x - a.x, b.y - a.y);
+        if (pr.dist < tol && pr.t * L > tol && (1 - pr.t) * L > tol) {
+          const q = splitWall(plan, w, pr.t);
+          replace(q.id, p.id);
+          changed = true;
+          break outer;
+        }
+      }
+    }
+  }
+  // 3) paredes duplicadas ou de comprimento zero
+  const seen = new Map();
+  const keep = [];
+  for (const w of plan.walls) {
+    if (w.a === w.b) continue;
+    const k = [w.a, w.b].sort().join('|');
+    const prev = seen.get(k);
+    if (!prev) { seen.set(k, w); keep.push(w); continue; }
+    const L = wallLength(plan, w);
+    for (const o of w.openings) prev.openings.push(prev.a === w.a ? o : { ...o, offset: L - o.offset });
+    if (prev.status === 'demolish' && w.status !== 'demolish') prev.status = w.status;
+  }
+  plan.walls = keep;
+  plan.rooms = plan.rooms.filter((r) => new Set(r.pts).size >= 3);
+  cleanup(plan);
+  detectRooms(plan);
+}
+
+// Cria um cômodo a partir de um polígono (em metros), ex.: vindo do mapeamento por foto.
+export function addPolygonRoom(plan, pts, name, status = 'existing') {
+  const ids = pts.map((p) => addPoint(plan, p.x, p.y).id);
+  for (let i = 0; i < ids.length; i++) addWall(plan, ids[i], ids[(i + 1) % ids.length], { status });
+  const room = addRoom(plan, ids, name);
+  return room;
+}

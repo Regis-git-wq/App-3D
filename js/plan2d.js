@@ -1,7 +1,7 @@
 // Editor 2D da planta em <canvas>, com toque (arrastar, pinça) e mouse.
 import {
   getPoint, wallEnds, wallLength, projectOnSegment, findPointNear, roomPoints, polygonCentroid,
-  roomArea, pointInPolygon, addPoint, addWall, addRoom, splitWall, clampOpenings, addOpening, round, detectRooms,
+  roomArea, pointInPolygon, addPoint, addWall, addRoom, splitWall, clampOpenings, addOpening, round, detectRooms, weldPlan,
 } from './model.js';
 import { FLOORS } from './catalog.js';
 
@@ -378,7 +378,7 @@ export class Plan2D {
         }
         s = { x: bx, y: by };
       }
-      if (s.pointId) return; // não funde pontos ao arrastar
+      // encostar num outro canto: posiciona em cima; a solda une ao soltar
       pt.x = round(s.x); pt.y = round(s.y);
       for (const w of plan.walls) if (w.a === d.id || w.b === d.id) clampOpenings(plan, w);
     } else if (d.kind === 'item') {
@@ -452,7 +452,15 @@ export class Plan2D {
       if (!d.started) this.app.select(d.hit ? (d.hit.type === 'point' ? { ...d.hit } : d.hit) : null);
       return;
     }
-    if (d.started) { this.app.changed(); return; }
+    if (d.started) {
+      if (d.kind === 'room' || d.kind === 'point' || d.kind === 'wall') {
+        const before = this.plan.rooms.length;
+        weldPlan(this.plan);
+        if (this.plan.rooms.length !== before) this.app.toast('Cômodos unidos às paredes vizinhas');
+      }
+      this.app.changed();
+      return;
+    }
     // toque simples num elemento já selecionado
     if (d.kind === 'point') {
       this.app.select({ type: 'point', id: d.id, parent: d.parent });

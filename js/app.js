@@ -1,11 +1,12 @@
 // Controlador principal do app Reforma 3D.
 import {
   newProject, clonePlan, uid, getWall, getPoint, wallLength, setWallLength, clampOpenings, findOpening,
-  deleteWall, deletePoint, cleanup, addRectRoom, addItem, roomArea, OPENING_DEFAULTS, OPENING_NAMES, detectRooms,
+  deleteWall, deletePoint, cleanup, addRectRoom, addItem, roomArea, OPENING_DEFAULTS, OPENING_NAMES, detectRooms, addPolygonRoom,
 } from './model.js';
 import { FLOORS, WALL_TILES, PAINTS, ITEMS, ITEM_COLORS, textureCanvas } from './catalog.js';
 import { computeQuantities, floorName, tileName, paintName, fmtM2, fmtM } from './quantities.js';
 import { Plan2D, fmtLen } from './plan2d.js';
+import { PhotoMapper } from './photomap.js';
 
 const STORE_KEY = 'reforma3d.project.v1';
 const $ = (s, el = document) => el.querySelector(s);
@@ -24,6 +25,7 @@ class App {
     this.redoStack = [];
     this.view3d = null;
     this.plan2d = new Plan2D($('#planCanvas'), this);
+    this.photoMapper = new PhotoMapper(this);
     this.bindUI();
     this.refreshAll();
     if (!localStorageGet('reforma3d.seenHelp')) {
@@ -119,6 +121,7 @@ class App {
     $$('#toolbar button').forEach((b) => (b.onclick = () => {
       const t = b.dataset.tool;
       if (t === 'room') return this.openRectRoom();
+      if (t === 'photo') { this.setTool('select'); return this.photoMapper.open(); }
       if (t === 'item') return this.openCatalog();
       this.setTool(this.tool === t && t !== 'select' ? 'select' : t);
     }));
@@ -685,6 +688,25 @@ class App {
     });
   }
 
+  // Recebe o polígono (em metros) vindo do mapeamento por foto.
+  addMappedRoom(pts, name) {
+    const plan = this.plan;
+    let ox = 0, oy = 0;
+    if (plan.points.length) {
+      ox = Math.max(...plan.points.map((p) => p.x)) + 1.0;
+      oy = Math.min(...plan.points.map((p) => p.y));
+    }
+    this.beginEdit();
+    let room = addPolygonRoom(plan, pts.map((p) => ({ x: p.x + ox, y: p.y + oy })), name || undefined, this.defaultWallStatus());
+    detectRooms(plan);
+    room = plan.rooms.find((r) => r.id === room.id) || plan.rooms[plan.rooms.length - 1];
+    if (this.view !== '2d') this.setView('2d');
+    this.changed();
+    this.plan2d.fit();
+    this.select({ type: 'room', id: room.id });
+    this.toast(plan.rooms.length > 1 ? 'Cômodo adicionado. Arraste até encostar no vizinho para unir as paredes.' : 'Cômodo adicionado. Agora coloque portas e janelas.');
+  }
+
   openCatalog() {
     const groups = [...new Set(ITEMS.map((i) => i.group))];
     this.openModal(`
@@ -771,8 +793,8 @@ class App {
       <div class="help">
         <h2>Como usar o Reforma 3D</h2>
         <ol>
-          <li><b>Meça o apartamento.</b> Use o app <i>Medida</i> do iPhone (já vem instalado) ou uma trena. Anote o comprimento de cada parede, posição de portas e janelas e o pé-direito.</li>
-          <li><b>Desenhe a planta.</b> Use <b>Cômodo</b> para criar retângulos com as medidas, ou <b>Parede</b> para traçar canto a canto: digite a medida em cm e toque na seta da direção. Toque no primeiro ponto para fechar o cômodo.</li>
+          <li><b>Mapeie com a câmera.</b> Toque em <b>Câmera</b>: coloque uma folha A4 no chão, tire uma foto do cômodo e toque nos cantos do chão. O app calcula a planta em metros. Repita para cada cômodo e arraste um até encostar no outro.</li>
+          <li><b>Ou digite as medidas.</b> Com trena ou o app <i>Medida</i> do iPhone, use <b>Cômodo</b> para criar retângulos ou <b>Parede</b> para traçar canto a canto: digite a medida em cm e toque na seta da direção. Toque no primeiro ponto para fechar o cômodo.</li>
           <li><b>Ajuste.</b> Em <b>Selecionar</b>, toque numa parede para mudar o comprimento, ou arraste cantos, paredes e cômodos. Use <b>Porta</b>, <b>Janela</b> e <b>Vão</b> tocando sobre as paredes.</li>
           <li><b>Crie a reforma.</b> No topo, toque no nome do cenário → <b>Novo a partir do atual</b>. No novo cenário, marque paredes como <b>Demolir</b>, desenhe paredes novas (ficam verdes), troque pisos e cores de cada cômodo e coloque móveis.</li>
           <li><b>Veja em 3D.</b> Toque em <b>3D</b>: gire com um dedo, aproxime com pinça. <b>Caminhar</b> coloca você dentro do apartamento. <b>AR</b> abre o modelo em realidade aumentada em tamanho real.</li>

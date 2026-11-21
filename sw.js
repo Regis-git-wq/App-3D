@@ -1,8 +1,8 @@
 // Service worker: funciona offline depois do primeiro acesso.
-const CACHE = 'reforma3d-v1';
+const CACHE = 'reforma3d-v2';
 const ASSETS = [
   './', './index.html', './css/app.css', './manifest.webmanifest',
-  './js/app.js', './js/model.js', './js/catalog.js', './js/quantities.js', './js/plan2d.js', './js/view3d.js',
+  './js/app.js', './js/model.js', './js/catalog.js', './js/quantities.js', './js/plan2d.js', './js/view3d.js', './js/photomap.js',
   './vendor/three/build/three.module.min.js',
   './vendor/three/examples/jsm/controls/OrbitControls.js',
   './vendor/three/examples/jsm/utils/BufferGeometryUtils.js',

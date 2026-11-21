@@ -189,3 +189,25 @@ a.btn { color: inherit; }
 .modal.dialog { z-index: 30; }
 #dialogBody { padding: 4px 16px 16px; }
 .dialog-input { width: 100%; border: 0; background: #f1eee8; border-radius: 10px; padding: 12px; font-size: 17px; outline: none; }
+
+/* mapeamento por foto */
+.pm { position: fixed; inset: 0; z-index: 25; background: #16171a; display: flex; flex-direction: column; }
+.pm-top { display: flex; align-items: center; gap: 8px; padding: calc(var(--safe-t) + 8px) 10px 8px; background: #1f2023; color: #fff; }
+.pm-top .btn { background: #34363a; color: #fff; }
+.pm-top .btn.primary { background: var(--accent); }
+.pm-top .btn:disabled { opacity: .4; }
+.pm-title { flex: 1; text-align: center; font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pm-stage { position: relative; flex: 1; min-height: 0; }
+.pm-stage canvas { position: absolute; inset: 0; touch-action: none; display: block; }
+.pm-intro { position: absolute; inset: 0; overflow-y: auto; background: var(--bg); -webkit-overflow-scrolling: touch; }
+.pm-card { padding: 12px 16px calc(var(--safe-b) + 24px); max-width: 640px; margin: 0 auto; }
+.pm-steps { padding-left: 20px; margin: 0; } .pm-steps li { margin-bottom: 10px; line-height: 1.42; font-size: 15px; }
+.pm-refs { flex-wrap: wrap; } .pm-refs button { flex: 1 1 40%; }
+.pm-bottom { background: #1f2023; color: #fff; padding: 10px 14px calc(var(--safe-b) + 12px); }
+.pm-bottom:empty { display: none; }
+.pm-bottom .btn { background: #34363a; color: #fff; }
+.pm-bottom .btn:disabled { opacity: .4; }
+.pm-msg { margin: 0; font-size: 14px; line-height: 1.4; color: #e9e7e3; }
+.pm-plan { background: #fff; border-radius: 12px; display: block; max-height: 46vh; }
+.pm-fix { display: flex; gap: 8px; flex-wrap: wrap; }
+.pm-fix select, .pm-fix input { flex: 1 1 40%; min-width: 0; border: 0; background: #f1eee8; border-radius: 9px; padding: 9px; font-size: 16px; }

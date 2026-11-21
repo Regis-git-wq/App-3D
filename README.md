@@ -6,6 +6,7 @@ Funciona no Safari do iPhone 16 sem precisar de Mac, Xcode, conta de desenvolved
 
 ## O que ele faz
 
+- **Mapear com a câmera**: coloque uma folha A4 no chão, fotografe o cômodo e toque nos cantos do chão e no alto das quinas. O app estima a inclinação da câmera (usando a folha, os cantos retos e as quinas verticais) e calcula a planta em metros. Em testes com fotos sintéticas o erro fica em torno de 1–3% por parede; informando uma medida de trena, a escala fica exata. Vários cômodos mapeados se unem ao serem arrastados até encostar.
 - **Planta 2D com o dedo**: crie cômodos retangulares pelas medidas ou trace parede por parede (digite a medida em cm e escolha a direção ↑ ← → ↓). Encaixe automático em cantos, paredes e ângulos retos. Pinça para zoom, arraste para mover.
 - **Portas, janelas e vãos** com largura, altura, peitoril e lado de abertura.
 - **Cômodos detectados automaticamente**: ao desenhar uma parede interna o cômodo se divide; ao marcar uma parede como *Demolir* os cômodos se unem.
@@ -19,7 +20,7 @@ Funciona no Safari do iPhone 16 sem precisar de Mac, Xcode, conta de desenvolved
 
 ## Como medir o apartamento sem LiDAR
 
-O iPhone 16 (não Pro) não tem LiDAR, então o escaneamento automático (RoomPlan da Apple) não está disponível. O caminho mais preciso é:
+O iPhone 16 (não Pro) não tem LiDAR, então o escaneamento automático (RoomPlan da Apple) não está disponível, e o Safari não dá acesso ao rastreamento AR da câmera. Por isso o app mapeia **por foto** (botão **Câmera**), usando uma folha A4 no chão como régua. Para conferir ou corrigir:
 
 1. Use uma **trena** (ou trena a laser) para as paredes. O app **Medida**, que já vem no iPhone, serve para conferir, mas erra alguns centímetros.
 2. Anote, para cada cômodo: comprimento de cada parede, posição e largura de portas/janelas (distância do canto), altura do peitoril das janelas e o pé-direito.
@@ -47,6 +48,7 @@ js/app.js               controlador: ferramentas, painéis, cenários, salvar/ab
 js/model.js             dados da planta, geometria e detecção de cômodos
 js/plan2d.js            editor 2D em canvas (toque, pinça, encaixes)
 js/view3d.js            3D com three.js, modo caminhar e exportação USDZ
+js/photomap.js          mapeamento por foto (modelo de câmera + folha de referência)
 js/catalog.js           pisos, revestimentos, cores e móveis (texturas geradas no código)
 js/quantities.js        quantitativos para orçamento
 sw.js, manifest.webmanifest, icons/   PWA (instalação e uso offline)
