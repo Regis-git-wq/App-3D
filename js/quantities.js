@@ -53,6 +53,10 @@ export function computeQuantities(plan) {
   }
 
   for (const it of plan.items) q.items[it.name] = (q.items[it.name] || 0) + 1;
+  q.mezz = (plan.mezzanines || []).map((m) => ({
+    name: m.name, area: m.w * m.d, floor: m.floor,
+    rail: (m.rails || []).reduce((t, on, i) => t + (on ? (i % 2 ? m.d : m.w) : 0), 0),
+  }));
   return q;
 }
 

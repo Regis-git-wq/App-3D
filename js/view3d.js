@@ -158,7 +158,7 @@ export class View3D {
       const [a, b] = wallEnds(plan, w);
       const L = Math.hypot(b.x - a.x, b.y - a.y);
       if (L < 0.01) continue;
-      const H = wallHeight(plan, w), t = w.thickness, ht = t / 2;
+      const H = this.opts.cut ? Math.min(wallHeight(plan, w), this.opts.cut) : wallHeight(plan, w), t = w.thickness, ht = t / 2;
       const sides = demolished ? {} : wallSideRooms(plan, w);
       const matL = demolished ? demoMat : this.finishMat(sides.L);
       const matR = demolished ? demoMat : this.finishMat(sides.R);
@@ -238,6 +238,7 @@ export class View3D {
 
     // móveis
     for (const it of plan.items) this.root.add(this.buildItem(it));
+    for (const m of plan.mezzanines || []) this.root.add(this.buildMezz(m));
 
     // luz do "sol" ajustada ao tamanho da planta
     const { cx, cy, size } = this.bounds;
@@ -323,6 +324,21 @@ export class View3D {
         box(w, h, d, 0, h / 2, 0);
         box(w - 0.05, 0.01, d - 0.05, 0, h + 0.005, 0, dark);
         break;
+      case 'stairs': {
+        // degraus maciços subindo da frente (+d/2) para o fundo (−d/2)
+        const n = Math.max(2, Math.round(h / 0.18));
+        const rise = h / n, run = d / n;
+        for (let i = 0; i < n; i++) {
+          const hh = rise * (i + 1);
+          box(w, 0.04, run + 0.02, 0, hh - 0.02, d / 2 - run * (i + 0.5), m);
+          box(w - 0.02, hh - 0.04, 0.02, 0, (hh - 0.04) / 2, d / 2 - run * i, this.colorMat('#f2f0eb'));
+        }
+        // longarina lateral
+        const L = Math.hypot(d, h);
+        const str = box(0.04, 0.25, L, w / 2 + 0.02, h / 2, 0, dark);
+        str.rotation.x = Math.atan2(h, d);
+        break;
+      }
       case 'wardrobe':
         box(w, h, d, 0, h / 2, 0);
         for (let i = 1; i < Math.round(w / 0.5); i++) box(0.006, h - 0.02, 0.005, -w / 2 + (i * w) / Math.round(w / 0.5), h / 2, d / 2 + 0.002, dark);
@@ -333,6 +349,36 @@ export class View3D {
     g.position.set(it.x, it.elev || 0, it.y);
     g.rotation.y = -(it.rot * Math.PI) / 180;
     g.userData.itemId = it.id;
+    return g;
+  }
+
+  buildMezz(m) {
+    const g = new THREE.Group();
+    const add = (geo, mat, x, y, z, shadow = true) => {
+      const mesh = new THREE.Mesh(geo, mat); mesh.position.set(x, y, z);
+      mesh.castShadow = shadow; mesh.receiveShadow = true; g.add(mesh); return mesh;
+    };
+    // laje (forro branco por baixo) + piso com textura em escala real
+    add(new THREE.BoxGeometry(m.w, m.t, m.d), this.colorMat('#f4f3f0'), 0, m.h - m.t / 2, 0);
+    const top = new THREE.PlaneGeometry(m.w, m.d);
+    const uv = top.attributes.uv;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * m.w, uv.getY(i) * m.d);
+    top.rotateX(-Math.PI / 2);
+    add(top, this.texMat('floor', m.floor), 0, m.h + 0.003, 0, false);
+    // guarda-corpo de vidro com corrimão (1,10 m)
+    const glass = this.mat('glass', () => new THREE.MeshStandardMaterial({ color: '#bcdbe8', transparent: true, opacity: 0.35, roughness: 0.05, metalness: 0.1, depthWrite: false }));
+    const metal = this.colorMat('#2f3033', { roughness: 0.4, metalness: 0.5 });
+    const sides = [
+      [0, -m.d / 2, m.w, 0], [m.w / 2, 0, m.d, Math.PI / 2], [0, m.d / 2, m.w, 0], [-m.w / 2, 0, m.d, Math.PI / 2],
+    ];
+    (m.rails || []).forEach((on, i) => {
+      if (!on) return;
+      const [x, z, len, ry] = sides[i];
+      add(new THREE.BoxGeometry(len, 1.0, 0.015), glass, x, m.h + 0.55, z, false).rotation.y = ry;
+      add(new THREE.BoxGeometry(len, 0.05, 0.06), metal, x, m.h + 1.08, z).rotation.y = ry;
+    });
+    g.position.set(m.x, 0, m.y);
+    g.rotation.y = -(m.rot * Math.PI) / 180;
     return g;
   }
 
@@ -369,10 +415,19 @@ export class View3D {
       for (const p of pts) if (Math.hypot(p.x - c.x, p.y - c.y) > Math.hypot(far.x - c.x, far.y - c.y)) far = p;
       const dx = far.x - c.x, dy = far.y - c.y;
       this.walk = { yaw: Math.atan2(dx, dy), pitch: -0.08 };
-      this.camera.position.set(c.x - dx * 0.55, EYE, c.y - dy * 0.55);
+      this.camera.position.set(c.x - dx * 0.55, EYE + (this.eyeBase || 0), c.y - dy * 0.55);
+      // no andar de cima, começa no centro do mezanino
+      const mz = (plan.mezzanines || [])[0];
+      if (this.eyeBase && mz) {
+        // fica no fundo do mezanino olhando para a sala, por cima do guarda-corpo
+        const vx = c.x - mz.x, vy = c.y - mz.y, L = Math.hypot(vx, vy) || 1;
+        const back = Math.min(mz.w, mz.d) * 0.35;
+        this.camera.position.set(mz.x - (vx / L) * back, mz.h + EYE, mz.y - (vy / L) * back);
+        this.walk = { yaw: Math.atan2(vx, vy), pitch: -0.25 };
+      }
       this.controls.enabled = false;
       this.camera.fov = 70; this.camera.updateProjectionMatrix();
-      this.build(plan, { ceiling: true });
+      this.build(plan, { ceiling: true, cut: 0 });
       this.applyLook();
     } else {
       this.walk = null;
@@ -448,7 +503,7 @@ export class View3D {
 function wallPieces(w, L, H) {
   const ops = [...w.openings].map((o) => ({
     s0: Math.max(0, o.offset - o.width / 2), s1: Math.min(L, o.offset + o.width / 2),
-    y0: Math.max(0, o.sill), y1: Math.min(H, o.sill + o.height),
+    y0: Math.min(H, Math.max(0, o.sill)), y1: Math.min(H, o.sill + o.height),
   })).sort((a, b) => a.s0 - b.s0);
   const pieces = [];
   let cur = 0;

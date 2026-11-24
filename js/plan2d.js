@@ -1,7 +1,7 @@
 // Editor 2D da planta em <canvas>, com toque (arrastar, pinça) e mouse.
 import {
   getPoint, wallEnds, wallLength, projectOnSegment, findPointNear, roomPoints, polygonCentroid,
-  roomArea, pointInPolygon, addPoint, addWall, addRoom, splitWall, clampOpenings, addOpening, round, detectRooms, weldPlan,
+  roomArea, pointInPolygon, addPoint, addWall, addRoom, splitWall, clampOpenings, addOpening, round, detectRooms, weldPlan, mezzanineCorners, UPPER_LEVEL,
 } from './model.js';
 import { FLOORS } from './catalog.js';
 
@@ -206,13 +206,24 @@ export class Plan2D {
       const off = pr.t * L;
       for (const o of w.openings) if (Math.abs(off - o.offset) < o.width / 2) return { type: 'opening', id: o.id };
     }
-    // móveis (de cima para baixo)
+    // móveis (de cima para baixo), só os do andar em exibição
+    const upper = this.app.level === 'upper';
     for (let i = plan.items.length - 1; i >= 0; i--) {
       const it = plan.items[i];
+      if (!this.onLevel(it)) continue;
       const a = (-it.rot * Math.PI) / 180;
       const dx = wp.x - it.x, dy = wp.y - it.y;
       const lx = dx * Math.cos(a) - dy * Math.sin(a), ly = dx * Math.sin(a) + dy * Math.cos(a);
       if (Math.abs(lx) <= it.w / 2 + tol / 3 && Math.abs(ly) <= it.d / 2 + tol / 3) return { type: 'item', id: it.id };
+    }
+    // mezanino: no andar de cima toca-se em qualquer ponto; no térreo, só na borda
+    for (const m of plan.mezzanines || []) {
+      const a = (-m.rot * Math.PI) / 180;
+      const dx = wp.x - m.x, dy = wp.y - m.y;
+      const lx = dx * Math.cos(a) - dy * Math.sin(a), ly = dx * Math.sin(a) + dy * Math.cos(a);
+      const inside = Math.abs(lx) <= m.w / 2 + tol / 2 && Math.abs(ly) <= m.d / 2 + tol / 2;
+      const nearEdge = inside && (m.w / 2 - Math.abs(lx) < tol || m.d / 2 - Math.abs(ly) < tol);
+      if (upper ? inside : nearEdge) return { type: 'mezz', id: m.id };
     }
     // paredes
     let best = null, bd = Infinity;
@@ -384,6 +395,9 @@ export class Plan2D {
     } else if (d.kind === 'item') {
       const it = plan.items.find((i) => i.id === d.id);
       it.x = round(it.x + (wp.x - d.last.x)); it.y = round(it.y + (wp.y - d.last.y));
+    } else if (d.kind === 'mezz') {
+      const m = (plan.mezzanines || []).find((i) => i.id === d.id);
+      if (m) { m.x = round(m.x + (wp.x - d.last.x)); m.y = round(m.y + (wp.y - d.last.y)); }
     } else if (d.kind === 'opening') {
       for (const w of plan.walls) {
         const o = w.openings.find((o) => o.id === d.id);
@@ -504,10 +518,21 @@ export class Plan2D {
     }
 
     // móveis
-    for (const it of plan.items) this.drawItem(g, it, sel?.type === 'item' && sel.id === it.id);
+    // móveis do outro andar ficam apagados
+    for (const it of plan.items) {
+      g.globalAlpha = this.onLevel(it) ? 1 : 0.22;
+      this.drawItem(g, it, sel?.type === 'item' && sel.id === it.id);
+    }
+    g.globalAlpha = 1;
 
     // paredes
     for (const w of plan.walls) this.drawWall(g, w, sel);
+
+    // mezaninos (por cima das paredes); no andar de cima, os móveis de cima vão por cima dele
+    for (const m of plan.mezzanines || []) this.drawMezz(g, m, sel?.type === 'mezz' && sel.id === m.id);
+    if (this.app.level === 'upper') {
+      for (const it of plan.items) if (this.onLevel(it)) this.drawItem(g, it, sel?.type === 'item' && sel.id === it.id);
+    }
 
     // rótulos dos cômodos
     g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -683,7 +708,49 @@ export class Plan2D {
     g.restore();
   }
 
+  onLevel(it) {
+    const upperItem = (it.elev || 0) >= UPPER_LEVEL && it.kind !== 'stairs';
+    if (it.kind === 'stairs') return true;
+    return this.app.level === 'upper' ? upperItem : !upperItem;
+  }
+
+  drawMezz(g, m, selected) {
+    const upper = this.app.level === 'upper';
+    const C = mezzanineCorners(m).map((p) => this.toScreen(p.x, p.y));
+    g.save();
+    g.beginPath(); C.forEach((q, i) => (i ? g.lineTo(q.x, q.y) : g.moveTo(q.x, q.y))); g.closePath();
+    if (upper) { g.fillStyle = (FLOORS[m.floor]?.color || '#c9a77c') + 'aa'; g.fill(); }
+    else {
+      // hachura diagonal: área coberta pelo mezanino
+      g.save(); g.clip();
+      g.strokeStyle = 'rgba(120,80,200,.28)'; g.lineWidth = 1;
+      const xs = C.map((q) => q.x), ys = C.map((q) => q.y);
+      const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+      for (let k = x0 - (y1 - y0); k < x1; k += 9) { g.beginPath(); g.moveTo(k, y1); g.lineTo(k + (y1 - y0), y0); g.stroke(); }
+      g.restore();
+    }
+    g.beginPath(); C.forEach((q, i) => (i ? g.lineTo(q.x, q.y) : g.moveTo(q.x, q.y))); g.closePath();
+    g.setLineDash(upper ? [] : [7, 5]);
+    g.strokeStyle = selected ? COLORS.sel : '#7a4fd0'; g.lineWidth = selected ? 3 : 2;
+    g.stroke(); g.setLineDash([]);
+    // guarda-corpo
+    g.strokeStyle = '#7a4fd0'; g.lineWidth = 4;
+    (m.rails || []).forEach((on, i) => {
+      if (!on) return;
+      const a = C[i], b = C[(i + 1) % 4];
+      g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
+    });
+    const cx = C.reduce((t, q) => t + q.x, 0) / 4, cy = C.reduce((t, q) => t + q.y, 0) / 4;
+    const label = `${m.name} · piso a ${m.h.toFixed(2).replace('.', ',')} m`;
+    g.font = '600 12px -apple-system, system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    const ly = upper ? cy - 34 : cy + 30;
+    this.labelBg(g, label, cx, ly, 'rgba(122,79,208,.9)');
+    g.fillStyle = '#fff'; g.fillText(label, cx, ly);
+    g.restore();
+  }
+
   drawItem(g, it, selected) {
+    if (it.kind === 'stairs') return this.drawStairs(g, it, selected);
     const s = this.toScreen(it.x, it.y);
     g.save(); g.translate(s.x, s.y); g.rotate((it.rot * Math.PI) / 180);
     const w = it.w * this.scale, d = it.d * this.scale;
@@ -699,6 +766,22 @@ export class Plan2D {
       g.fillStyle = lum(it.color) > 0.55 ? '#333' : '#fff';
       g.fillText(clip(g, it.name, w - 6), 0, 0);
     }
+    g.restore();
+  }
+
+  drawStairs(g, it, selected) {
+    const s = this.toScreen(it.x, it.y);
+    g.save(); g.translate(s.x, s.y); g.rotate((it.rot * Math.PI) / 180);
+    const w = it.w * this.scale, d = it.d * this.scale;
+    const n = Math.max(2, Math.round(it.h / 0.18));
+    g.fillStyle = it.color + '55'; g.strokeStyle = selected ? COLORS.sel : 'rgba(0,0,0,.6)';
+    g.lineWidth = selected ? 2.5 : 1.2;
+    g.beginPath(); g.rect(-w / 2, -d / 2, w, d); g.fill(); g.stroke();
+    g.lineWidth = 1; g.strokeStyle = 'rgba(0,0,0,.45)';
+    for (let i = 1; i < n; i++) { const y = d / 2 - (i * d) / n; g.beginPath(); g.moveTo(-w / 2, y); g.lineTo(w / 2, y); g.stroke(); }
+    // seta de subida (da frente para o fundo)
+    g.strokeStyle = '#1f2023'; g.lineWidth = 1.6;
+    g.beginPath(); g.moveTo(0, d / 2 - 6); g.lineTo(0, -d / 2 + 8); g.moveTo(-5, -d / 2 + 15); g.lineTo(0, -d / 2 + 8); g.lineTo(5, -d / 2 + 15); g.stroke();
     g.restore();
   }
 

@@ -2,11 +2,13 @@
 import {
   newProject, clonePlan, uid, getWall, getPoint, wallLength, setWallLength, clampOpenings, findOpening,
   deleteWall, deletePoint, cleanup, addRectRoom, addItem, roomArea, OPENING_DEFAULTS, OPENING_NAMES, detectRooms, addPolygonRoom,
+  addMezzanine, mezzanineCorners, pointInPolygon,
 } from './model.js';
 import { FLOORS, WALL_TILES, PAINTS, ITEMS, ITEM_COLORS, textureCanvas } from './catalog.js';
 import { computeQuantities, floorName, tileName, paintName, fmtM2, fmtM } from './quantities.js';
 import { Plan2D, fmtLen } from './plan2d.js';
 import { PhotoMapper } from './photomap.js';
+import { unit17Project } from './apartment.js';
 
 const STORE_KEY = 'reforma3d.project.v1';
 const $ = (s, el = document) => el.querySelector(s);
@@ -17,7 +19,8 @@ const num = (v) => parseFloat(String(v).replace(',', '.'));
 
 class App {
   constructor() {
-    this.project = this.load() || newProject(true);
+    this.project = this.load() || unit17Project();
+    this.level = 'ground';
     this.selection = null;
     this.tool = 'select';
     this.view = '2d';
@@ -53,6 +56,7 @@ class App {
 
   changed() {
     this.validateSelection();
+    this.updateLevelSeg();
     this.save();
     this.plan2d.draw();
     this.renderProps();
@@ -107,7 +111,8 @@ class App {
       : s.type === 'point' ? getPoint(plan, s.id)
         : s.type === 'room' ? plan.rooms.find((r) => r.id === s.id)
           : s.type === 'item' ? plan.items.find((i) => i.id === s.id)
-            : s.type === 'opening' ? findOpening(plan, s.id) : null;
+            : s.type === 'opening' ? findOpening(plan, s.id)
+              : s.type === 'mezz' ? (plan.mezzanines || []).find((m) => m.id === s.id) : null;
     if (!ok) this.selection = null;
   }
 
@@ -127,6 +132,7 @@ class App {
     }));
     $('#modal').addEventListener('click', (e) => { if (e.target.closest('[data-close]')) this.closeModal(); });
     $('#propsGrab').onclick = () => $('#props').classList.toggle('collapsed');
+    $$('#levelSeg button').forEach((b) => (b.onclick = () => this.setLevel(b.dataset.level)));
 
     // painel parede
     $('#wpOrigin').onclick = () => { this.plan2d.startChainAt(0, 0); this.chainChanged(); };
@@ -151,6 +157,12 @@ class App {
       this.toast(this.showDemo ? 'Paredes a demolir em vermelho translúcido' : 'Mostrando o resultado final');
     };
     $('#btnAR').onclick = () => this.openAR();
+    $('#btnCut').onclick = () => {
+      this.cut = !this.cut;
+      $('#btnCut').classList.toggle('on', this.cut);
+      this.rebuild3d();
+      this.toast(this.cut ? 'Paredes cortadas a 1,20 m para ver por dentro' : 'Paredes inteiras');
+    };
     this.bindJoystick();
 
     $('#fileInput').onchange = (e) => this.importFile(e.target.files[0]);
@@ -236,14 +248,15 @@ class App {
 
   rebuild3d() {
     if (!this.view3d) return;
-    this.view3d.build(this.plan, { showDemolished: !!this.showDemo, ceiling: !!this.view3d.walk });
+    this.view3d.build(this.plan, { showDemolished: !!this.showDemo, ceiling: !!this.view3d.walk, cut: this.cut && !this.view3d.walk ? 1.2 : 0 });
   }
 
   toggleWalk() {
     const v = this.view3d;
     if (!v) return;
+    v.eyeBase = this.level === 'upper' ? (this.plan.mezzanines?.[0]?.h || 0) : 0;
     v.setWalk(!v.walk);
-    if (this.showDemo) this.rebuild3d();
+    this.rebuild3d();
     $('#btnWalk').classList.toggle('on', !!v.walk);
     $('#joystick').classList.toggle('hidden', !v.walk);
     if (v.walk) this.toast('Arraste para olhar; use o controle para andar');
@@ -268,7 +281,31 @@ class App {
     j.addEventListener('pointerup', end); j.addEventListener('pointercancel', end);
   }
 
+  setLevel(l) {
+    this.level = l;
+    $$('#levelSeg button').forEach((b) => b.classList.toggle('on', b.dataset.level === l));
+    if (this.selection?.type === 'item') this.select(null);
+    this.plan2d.draw();
+    this.toast(l === 'upper' ? 'Andar de cima: móveis novos vão para cima do mezanino' : 'Térreo');
+  }
+
+  updateLevelSeg() {
+    const has = (this.plan.mezzanines || []).length > 0;
+    $('#levelSeg').classList.toggle('hidden', !has || this.view !== '2d');
+    if (!has && this.level !== 'ground') {
+      this.level = 'ground';
+      $$('#levelSeg button').forEach((b) => b.classList.toggle('on', b.dataset.level === 'ground'));
+    }
+  }
+
+  // mezanino onde fica o ponto (ou o primeiro), para posicionar móveis do andar de cima
+  mezzAt(p) {
+    const ms = this.plan.mezzanines || [];
+    return ms.find((m) => pointInPolygon(p, mezzanineCorners(m))) || ms[0] || null;
+  }
+
   refreshAll() {
+    this.updateLevelSeg();
     $('#scenarioName').textContent = this.scenario.name;
     this.updateUndo();
     this.plan2d.fitted = false;
@@ -396,6 +433,30 @@ class App {
           <input type="color" class="color-input" value="${it.color}" data-f="icolor">
         </div>
         <div class="btn-row"><button class="btn" data-act="dup">Duplicar</button><button class="btn danger" data-act="del">Excluir</button></div>`;
+    } else if (s.type === 'mezz') {
+      const m = (plan.mezzanines || []).find((x) => x.id === s.id);
+      const above = plan.wallHeight - m.h;
+      const below = m.h - m.t;
+      const names = ['Cima', 'Direita', 'Baixo', 'Esquerda'];
+      html = `
+        <div class="head"><h2>Mezanino</h2><span class="muted">${fmtM2(m.w * m.d)}</span></div>
+        <label class="field"><span>Nome</span><input type="text" class="wide" value="${esc(m.name)}" data-f="mname"></label>
+        <div class="grid2">
+          <label class="field"><span>Largura</span><input type="number" inputmode="decimal" value="${cm(m.w)}" data-f="mw"></label>
+          <label class="field"><span>Profund.</span><input type="number" inputmode="decimal" value="${cm(m.d)}" data-f="md"></label>
+          <label class="field"><span>Piso a</span><input type="number" inputmode="decimal" value="${cm(m.h)}" data-f="mh"></label>
+          <label class="field"><span>Laje</span><input type="number" inputmode="decimal" value="${cm(m.t)}" data-f="mt"></label>
+        </div>
+        <p class="muted">Embaixo: <b>${fmtLen(below)}</b> livres · Em cima: <b>${fmtLen(above)}</b> até o teto (pé-direito ${fmtLen(plan.wallHeight)}).
+          ${above < 1.9 ? ' Em cima dá para sentar/deitar, mas não ficar em pé.' : ''}${below < 2.2 ? ' Embaixo está baixo: o mínimo confortável é 2,20 m.' : ''}</p>
+        <h3>Guarda-corpo (lados como na planta)</h3>
+        <div class="rails">${names.map((n, i) => `<button data-rail="${i}" class="${m.rails?.[i] ? 'on' : ''}">${n}</button>`).join('')}</div>
+        <div class="field"><span>Girar</span><div class="rot"><button data-mrot="-90">↺ 90°</button><button data-mrot="90">↻ 90°</button></div></div>
+        <h3>Piso do mezanino</h3>
+        <div class="mat-list">
+          ${Object.entries(FLOORS).map(([k, f]) => `<button class="mat ${m.floor === k ? 'on' : ''}" data-mfloor="${k}"><div class="img" style="background-image:url(${texURL('floor', k)})"></div>${f.name}</button>`).join('')}
+        </div>
+        <div class="btn-row"><button class="btn danger" data-act="del">Excluir mezanino</button></div>`;
     }
     body.innerHTML = html;
     this.bindProps(body);
@@ -434,6 +495,21 @@ class App {
             const r = plan.rooms.find((r) => r.id === s.id);
             if (f === 'rname') r.name = inp.value.trim() || r.name;
             if (f === 'rcolor') r.wall = { ...(r.wall || {}), type: 'paint', color: inp.value };
+          } else if (s.type === 'mezz') {
+            const z = plan.mezzanines.find((x) => x.id === s.id);
+            if (f === 'mname') z.name = inp.value.trim() || z.name;
+            if (f === 'mw' && m > 0.5) z.w = m;
+            if (f === 'md' && m > 0.5) z.d = m;
+            if (f === 'mt' && m > 0.05 && m < 0.6) z.t = m;
+            if (f === 'mh' && m > 1) {
+              // móveis que estavam em cima acompanham a nova altura
+              const dz = m - z.h;
+              for (const it of plan.items) {
+                if (it.kind === 'stairs' && Math.abs(it.h - z.h) < 0.05) it.h = m;
+                else if ((it.elev || 0) >= z.h - 0.01 && pointInPolygon(it, mezzanineCorners(z))) it.elev = Math.round((it.elev + dz) * 1000) / 1000;
+              }
+              z.h = m;
+            }
           } else if (s.type === 'item') {
             const it = plan.items.find((i) => i.id === s.id);
             if (f === 'iw' && m > 0.02) it.w = m;
@@ -479,6 +555,9 @@ class App {
       if (b.dataset.tile) return edit(() => { const r = plan.rooms.find((r) => r.id === s.id); r.wall = { ...r.wall, type: 'tile', tile: b.dataset.tile }; });
       if (b.dataset.paint) return edit(() => { const r = plan.rooms.find((r) => r.id === s.id); r.wall = { ...r.wall, type: 'paint', color: b.dataset.paint }; });
       if (b.dataset.icolor) return edit(() => { plan.items.find((i) => i.id === s.id).color = b.dataset.icolor; });
+      if (b.dataset.rail) return edit(() => { const z = plan.mezzanines.find((x) => x.id === s.id); z.rails = z.rails || [false, false, false, false]; z.rails[+b.dataset.rail] = !z.rails[+b.dataset.rail]; });
+      if (b.dataset.mrot) return edit(() => { const z = plan.mezzanines.find((x) => x.id === s.id); z.rot = ((z.rot + +b.dataset.mrot) % 360 + 360) % 360; });
+      if (b.dataset.mfloor) return edit(() => { plan.mezzanines.find((x) => x.id === s.id).floor = b.dataset.mfloor; });
       if (b.dataset.rot) return edit(() => { const it = plan.items.find((i) => i.id === s.id); it.rot = ((it.rot + +b.dataset.rot) % 360 + 360) % 360; });
       const act = b.dataset.act;
       if (!act) return;
@@ -489,6 +568,7 @@ class App {
           if (s.type === 'opening') { const { wall } = findOpening(plan, s.id); wall.openings = wall.openings.filter((o) => o.id !== s.id); }
           if (s.type === 'room') { plan.rooms = plan.rooms.filter((r) => r.id !== s.id); cleanup(plan); }
           if (s.type === 'item') plan.items = plan.items.filter((i) => i.id !== s.id);
+          if (s.type === 'mezz') plan.mezzanines = plan.mezzanines.filter((m) => m.id !== s.id);
           this.selection = null;
         });
       } else if (act === 'dup') {
@@ -562,6 +642,7 @@ class App {
         ${item('export', '<path d="M12 3v12M7 8l5-5 5 5M5 21h14"/>', 'Exportar projeto (arquivo .json)')}
         ${item('import', '<path d="M12 15V3M7 10l5 5 5-5M5 21h14"/>', 'Importar projeto (.json)')}
         ${item('rename', '<path d="M4 20h4L20 8l-4-4L4 16z"/>', 'Renomear projeto')}
+        ${item('apto', '<path d="M4 20V9l8-5 8 5v11zM10 20v-6h4v6"/>', 'Abrir planta do apto (Unidade 17)')}
         ${item('sample', '<path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4z"/>', 'Novo projeto com exemplo')}
         ${item('new', '<path d="M12 5v14M5 12h14"/>', 'Novo projeto em branco')}
         ${item('help', '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 015 0c0 2-2.5 2-2.5 4M12 17h.01"/>', 'Como usar')}
@@ -584,6 +665,13 @@ class App {
         if (m === 'rename') {
           const n = await this.ask('Nome do projeto', { value: this.project.name });
           if (n) { this.project.name = n.trim(); this.save(); }
+        }
+        if (m === 'apto') {
+          if (!await this.ask('Abrir a planta da Unidade 17?', { text: 'O projeto atual será substituído. Exporte antes se quiser guardar.', ok: 'Abrir', danger: true })) return;
+          this.project = unit17Project();
+          this.undoStack = []; this.redoStack = []; this.selection = null;
+          this.plan2d.endChain();
+          this.save(); this.refreshAll();
         }
         if (m === 'new' || m === 'sample') {
           if (!await this.ask('Começar um novo projeto?', { text: 'O projeto atual será substituído. Exporte antes se quiser guardar.', ok: 'Começar', danger: true })) return;
@@ -720,7 +808,18 @@ class App {
         const def = ITEMS[+b.dataset.i];
         const c = this.plan2d.viewCenter();
         this.beginEdit();
-        const it = addItem(this.plan, def, c.x, c.y);
+        if (def.kind === 'mezzanine') {
+          const m = addMezzanine(this.plan, c.x, c.y, def.w, def.d, Math.min(def.h, this.plan.wallHeight - 1.2));
+          this.closeModal(); this.setTool('select'); this.changed();
+          this.select({ type: 'mezz', id: m.id });
+          if (this.plan.wallHeight < 4.6) this.toast(`Atenção: com pé-direito de ${fmtLen(this.plan.wallHeight)} sobra pouca altura em cima. O ideal é 4,80 m ou mais.`);
+          else this.toast('Arraste o mezanino e ajuste o tamanho e o guarda-corpo');
+          return;
+        }
+        const def2 = { ...def };
+        if (def.kind === 'stairs') def2.h = (this.mezzAt(c)?.h) || def.h;
+        if (this.level === 'upper' && def.kind !== 'stairs') def2.elev = (this.mezzAt(c)?.h || 2.6) + (def.elev || 0);
+        const it = addItem(this.plan, def2, c.x, c.y);
         this.closeModal();
         this.setTool('select');
         this.changed();
@@ -744,6 +843,7 @@ class App {
       ${row('Demolição de paredes', `${fmtM2(q.demolishArea)} (${fmtM(q.demolishLength)})`)}
       ${row('Paredes novas', `${fmtM2(q.newArea)} (${fmtM(q.newLength)})`)}
       ${row('Portas / janelas / vãos', `${q.openings.door} / ${q.openings.window} / ${q.openings.passage}`)}
+      ${q.mezz.map((m) => row(`${esc(m.name)}: laje / piso (${floorName(m.floor)})`, fmtM2(m.area)) + row(`${esc(m.name)}: guarda-corpo`, fmtM(m.rail))).join('')}
     </table>`;
     if (Object.keys(q.items).length) h += `<h3>Móveis e equipamentos</h3><table class="q">${Object.entries(q.items).map(([k, v]) => row(esc(k), v + '×')).join('')}</table>`;
     h += `<p class="muted">* Área de parede por lado, já descontando portas e janelas. Some 10–15% de perda para revestimentos.</p>`;

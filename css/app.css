@@ -211,3 +211,9 @@ a.btn { color: inherit; }
 .pm-plan { background: #fff; border-radius: 12px; display: block; max-height: 46vh; }
 .pm-fix { display: flex; gap: 8px; flex-wrap: wrap; }
 .pm-fix select, .pm-fix input { flex: 1 1 40%; min-width: 0; border: 0; background: #f1eee8; border-radius: 9px; padding: 9px; font-size: 16px; }
+
+.level-seg { position: absolute; left: 10px; top: 10px; z-index: 3; box-shadow: var(--shadow); }
+.level-seg button.on[data-level=upper] { color: #7a4fd0; }
+.rails { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.rails button { border: 0; border-radius: 9px; background: #ece8e1; padding: 8px 4px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.rails button.on { background: #efe8fb; color: #7a4fd0; box-shadow: inset 0 0 0 2px #7a4fd0; }

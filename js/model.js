@@ -499,3 +499,26 @@ export function addPolygonRoom(plan, pts, name, status = 'existing') {
   const room = addRoom(plan, ids, name);
   return room;
 }
+
+// ---------- mezanino (andar de cima) ----------
+// Retângulo com centro (x, y), largura w, profundidade d, giro rot (graus) e piso na altura h.
+// rails: guarda-corpo nos lados [cima, direita, baixo, esquerda] (como vistos na planta).
+export function addMezzanine(plan, x, y, w = 3, d = 2.5, h = 2.6) {
+  plan.mezzanines = plan.mezzanines || [];
+  const m = {
+    id: uid(), name: 'Mezanino', x: round(x), y: round(y), w, d, rot: 0, h, t: 0.2,
+    floor: 'madeira_clara', rails: [true, true, true, true],
+  };
+  plan.mezzanines.push(m);
+  return m;
+}
+
+export function mezzanineCorners(m) {
+  const a = (m.rot * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a);
+  return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => {
+    const lx = (u * m.w) / 2, ly = (v * m.d) / 2;
+    return { x: m.x + lx * c - ly * s, y: m.y + lx * s + ly * c };
+  });
+}
+
+export const UPPER_LEVEL = 1.5; // móveis com base acima disso são do andar de cima
