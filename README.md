@@ -9,12 +9,12 @@ Funciona no Safari do iPhone 16 sem precisar de Mac, Xcode, conta de desenvolved
 - **Mapear com a câmera**: coloque uma folha A4 no chão, fotografe o cômodo e toque nos cantos do chão e no alto das quinas. O app estima a inclinação da câmera (usando a folha, os cantos retos e as quinas verticais) e calcula a planta em metros. Em testes com fotos sintéticas o erro fica em torno de 1–3% por parede; informando uma medida de trena, a escala fica exata. Vários cômodos mapeados se unem ao serem arrastados até encostar.
 - **Planta 2D com o dedo**: crie cômodos retangulares pelas medidas ou trace parede por parede (digite a medida em cm e escolha a direção ↑ ← → ↓). Encaixe automático em cantos, paredes e ângulos retos. Pinça para zoom, arraste para mover.
 - **Mezanino (andar de cima)**: laje com piso, guarda-corpo de vidro por lado, escada reta ou compacta e móveis em cima. Na planta, o seletor *Térreo / Mezanino* mostra cada andar; no 3D, o botão *Corte* baixa as paredes para ver por dentro e *Caminhar* no modo Mezanino coloca você lá em cima.
-- **Planta do apartamento (Unidade 17)** já carregada, com a proposta de mezanino como segundo cenário (`js/apartment.js`). As cotas foram lidas de um print da planta e o pé-direito de 5,00 m é uma estimativa.
+- **Planta do apartamento (Unidade 18)** já carregada, com a proposta de mezanino como segundo cenário (`js/apartment.js`; a 18 é gerada espelhando a 17). As cotas foram lidas de um print da planta e o pé-direito de 5,00 m é uma estimativa.
 - **Portas, janelas e vãos** com largura, altura, peitoril e lado de abertura.
 - **Cômodos detectados automaticamente**: ao desenhar uma parede interna o cômodo se divide; ao marcar uma parede como *Demolir* os cômodos se unem.
 - **Cenários**: mantenha o "Atual (antes)" e crie versões da reforma (Reforma A, B…). Paredes podem ser *Existente*, *Demolir* (vermelho) ou *Construir* (verde).
 - **Acabamentos por cômodo**: pisos (porcelanato, madeira, vinílico, mármore, cimento queimado, ladrilho hidráulico…), pintura (paleta ou cor livre) ou revestimento de parede (azulejo, metrô, tijolinho, ripado…).
-- **Móveis e equipamentos** em tamanho real (sofás, camas, guarda-roupa, bancadas, geladeira, vaso, box…), com cor, giro e medidas editáveis.
+- **Móveis e equipamentos** em tamanho real, com busca no catálogo (mais de 70 itens: sofás, sofá com chaise, camas até king, beliche, guarda-roupas e armário planejado, TVs de 50" a 65", painel ripado, estante, mesas, cozinha, banheiro, área técnica, cortina, quadro…), com cor, giro e medidas editáveis.
 - **3D**: maquete para girar e aproximar, modo **Caminhar** (primeira pessoa com joystick) e botão para ver as demolições.
 - **Realidade aumentada**: gera um arquivo `.usdz` e abre no **AR Quick Look** do iPhone, em escala 1:1.
 - **Quantitativos para orçamento**: m² de piso por material, m² de pintura por cor, revestimento, demolição e paredes novas (descontando portas e janelas), além da comparação entre cenários.
@@ -51,7 +51,7 @@ js/model.js             dados da planta, geometria e detecção de cômodos
 js/plan2d.js            editor 2D em canvas (toque, pinça, encaixes)
 js/view3d.js            3D com three.js, modo caminhar e exportação USDZ
 js/photomap.js          mapeamento por foto (modelo de câmera + folha de referência)
-js/apartment.js         planta da Unidade 17 e proposta de mezanino
+js/apartment.js         planta das Unidades 17/18 e proposta de mezanino
 js/catalog.js           pisos, revestimentos, cores e móveis (texturas geradas no código)
 js/quantities.js        quantitativos para orçamento
 sw.js, manifest.webmanifest, icons/   PWA (instalação e uso offline)

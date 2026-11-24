@@ -757,7 +757,14 @@ export class Plan2D {
     g.fillStyle = it.color + 'd0';
     g.strokeStyle = selected ? COLORS.sel : 'rgba(0,0,0,.45)';
     g.lineWidth = selected ? 2.5 : 1;
-    g.beginPath(); g.rect(-w / 2, -d / 2, w, d); g.fill(); g.stroke();
+    g.beginPath();
+    if (['table_round', 'stool', 'plant', 'lamp'].includes(it.kind)) g.ellipse(0, 0, w / 2, d / 2, 0, 0, Math.PI * 2);
+    else if (it.kind === 'sofa_l') {
+      const sd = Math.min(0.95, it.d) * this.scale, cw = Math.min(0.85, it.w / 2) * this.scale;
+      g.moveTo(-w / 2, -d / 2); g.lineTo(w / 2, -d / 2); g.lineTo(w / 2, d / 2); g.lineTo(w / 2 - cw, d / 2);
+      g.lineTo(w / 2 - cw, -d / 2 + sd); g.lineTo(-w / 2, -d / 2 + sd); g.closePath();
+    } else g.rect(-w / 2, -d / 2, w, d);
+    g.fill(); g.stroke();
     // marca da "frente" do móvel
     g.beginPath(); g.moveTo(-w / 2 + 3, d / 2 - 3); g.lineTo(w / 2 - 3, d / 2 - 3);
     g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 2; g.stroke();

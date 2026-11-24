@@ -339,6 +339,66 @@ export class View3D {
         str.rotation.x = Math.atan2(h, d);
         break;
       }
+      case 'sofa_l': {
+        // sofá com chaise no lado direito (a chaise ocupa toda a profundidade)
+        const sd = Math.min(0.95, d), cw = Math.min(0.85, w / 2);
+        box(w, 0.42, sd, 0, 0.21, -d / 2 + sd / 2);
+        box(cw, 0.42, d - sd, w / 2 - cw / 2, 0.21, sd / 2);
+        box(w, h - 0.42, 0.2, 0, 0.42 + (h - 0.42) / 2, -d / 2 + 0.1);
+        box(0.18, 0.62, sd, -w / 2 + 0.09, 0.31, -d / 2 + sd / 2);
+        break;
+      }
+      case 'table_round': {
+        const top = new THREE.Mesh(new THREE.CylinderGeometry(w / 2, w / 2, 0.04, 32), m);
+        top.position.y = h - 0.02; top.castShadow = true; g.add(top);
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, h - 0.04, 12), dark);
+        leg.position.y = (h - 0.04) / 2; leg.castShadow = true; g.add(leg);
+        const base = new THREE.Mesh(new THREE.CylinderGeometry(w * 0.25, w * 0.25, 0.02, 24), dark);
+        base.position.y = 0.01; g.add(base);
+        break;
+      }
+      case 'stool': {
+        const seat = new THREE.Mesh(new THREE.CylinderGeometry(w / 2, w / 2, Math.min(0.1, h * 0.3), 24), m);
+        seat.position.y = h - Math.min(0.05, h * 0.15); seat.castShadow = true; g.add(seat);
+        if (h > 0.5) { const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, h - 0.1, 10), dark); leg.position.y = (h - 0.1) / 2; g.add(leg); }
+        else { const body = new THREE.Mesh(new THREE.CylinderGeometry(w / 2, w / 2, h - 0.1, 24), m); body.position.y = (h - 0.1) / 2; body.castShadow = true; g.add(body); }
+        break;
+      }
+      case 'lamp': {
+        const base = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.03, 20), dark); base.position.y = 0.015; g.add(base);
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, h - 0.3, 8), dark); pole.position.y = (h - 0.3) / 2; g.add(pole);
+        const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.12, w / 2, 0.3, 24, 1, true), this.colorMat('#ece6da', { side: THREE.DoubleSide }));
+        shade.position.y = h - 0.15; g.add(shade);
+        break;
+      }
+      case 'tv':
+        box(w, h, 0.04, 0, h / 2, 0, this.colorMat('#111214', { roughness: 0.2, metalness: 0.3 }));
+        box(w - 0.03, h - 0.03, 0.005, 0, h / 2, 0.021, this.colorMat('#1d2a33', { roughness: 0.1 }));
+        break;
+      case 'shelf': {
+        box(0.03, h, d, -w / 2 + 0.015, h / 2, 0); box(0.03, h, d, w / 2 - 0.015, h / 2, 0);
+        const n = Math.max(2, Math.round(h / 0.35));
+        for (let i = 0; i <= n; i++) box(w, 0.025, d, 0, Math.min(h - 0.0125, 0.0125 + (i * h) / n), 0);
+        break;
+      }
+      case 'bunk':
+        box(0.05, h, 0.05, -w / 2 + 0.025, h / 2, -d / 2 + 0.025); box(0.05, h, 0.05, w / 2 - 0.025, h / 2, -d / 2 + 0.025);
+        box(0.05, h, 0.05, -w / 2 + 0.025, h / 2, d / 2 - 0.025); box(0.05, h, 0.05, w / 2 - 0.025, h / 2, d / 2 - 0.025);
+        box(w, 0.06, d, 0, 0.25, 0); box(w - 0.1, 0.16, d - 0.1, 0, 0.36, 0, white);
+        box(w, 0.06, d, 0, h - 0.45, 0); box(w - 0.1, 0.16, d - 0.1, 0, h - 0.34, 0, white);
+        box(w, 0.2, 0.03, 0, h - 0.1, 0.2, m);
+        break;
+      case 'curtain': {
+        const fabric = this.colorMat(it.color, { transparent: true, opacity: 0.85, side: THREE.DoubleSide });
+        const folds = Math.max(4, Math.round(w / 0.12));
+        for (let i = 0; i < folds; i++) {
+          const mesh = new THREE.Mesh(new THREE.BoxGeometry(w / folds + 0.01, h - 0.02, 0.012), fabric);
+          mesh.position.set(-w / 2 + (i + 0.5) * (w / folds), h / 2, (i % 2 ? 1 : -1) * d * 0.3);
+          mesh.castShadow = true; g.add(mesh);
+        }
+        box(w + 0.1, 0.03, 0.03, 0, h - 0.015, 0, dark);
+        break;
+      }
       case 'wardrobe':
         box(w, h, d, 0, h / 2, 0);
         for (let i = 1; i < Math.round(w / 0.5); i++) box(0.006, h - 0.02, 0.005, -w / 2 + (i * w) / Math.round(w / 0.5), h / 2, d / 2 + 0.002, dark);

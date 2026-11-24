@@ -1,4 +1,4 @@
-// Planta da Unidade 17 (a 18 é espelhada), lida da planta YHM-ARQ-LO-1007-PLA-TPO-R04.
+// Planta da Unidade 17; a Unidade 18 (a do usuário) é gerada espelhando esta, lida da planta YHM-ARQ-LO-1007-PLA-TPO-R04.
 // Medidas em metros pelo eixo das paredes, aproximadas a partir das cotas legíveis no print:
 // dormitório 3,22 × 2,62; sala/cozinha 4,04 × 2,42; closet/circulação ~0,68; banho 2,44 × ~1,25;
 // terraço social 1,66 de largura; janela do dormitório 1,60; porta de vidro da sala 1,80.
@@ -117,6 +117,29 @@ function mezzanineScenario(plan) {
   item('table', 'Escrivaninha', 3.65, 3.4, 1.2, 0.6, 0.75, '#c9a77c', 270);
   item('chair', 'Cadeira', 3.2, 3.4, 0.45, 0.5, 0.9, '#2f3033', 90);
   item('sofa', 'Sofá 2 lugares', 1.9, 4.65, 1.6, 0.85, 0.85, '#8f8a83', 0);
+}
+
+// A Unidade 18 é o espelho da 17 em relação à parede da cozinha (parede entre as duas unidades):
+// na 18 o dormitório fica do lado oposto à cozinha.
+export function mirrorPlanY(plan) {
+  const maxY = Math.max(...plan.points.map((p) => p.y));
+  const fy = (y) => round(maxY - y);
+  for (const p of plan.points) p.y = fy(p.y);
+  for (const w of plan.walls) for (const o of w.openings) o.swing = -(o.swing || 1);
+  for (const it of plan.items) { it.y = fy(it.y); it.rot = ((180 - it.rot) % 360 + 360) % 360; }
+  for (const m of plan.mezzanines || []) {
+    m.y = fy(m.y); m.rot = ((360 - m.rot) % 360);
+    if (m.rails) m.rails = [m.rails[2], m.rails[1], m.rails[0], m.rails[3]];
+  }
+  for (const r of plan.rooms) r.pts.reverse();
+  return plan;
+}
+
+export function unit18Project() {
+  const p = unit17Project();
+  p.name = 'Apto Unidade 18';
+  for (const s of p.scenarios) mirrorPlanY(s.plan);
+  return p;
 }
 
 export function unit17Project() {

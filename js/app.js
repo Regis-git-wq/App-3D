@@ -8,7 +8,7 @@ import { FLOORS, WALL_TILES, PAINTS, ITEMS, ITEM_COLORS, textureCanvas } from '.
 import { computeQuantities, floorName, tileName, paintName, fmtM2, fmtM } from './quantities.js';
 import { Plan2D, fmtLen } from './plan2d.js';
 import { PhotoMapper } from './photomap.js';
-import { unit17Project } from './apartment.js';
+import { unit18Project } from './apartment.js';
 
 const STORE_KEY = 'reforma3d.project.v1';
 const $ = (s, el = document) => el.querySelector(s);
@@ -19,7 +19,7 @@ const num = (v) => parseFloat(String(v).replace(',', '.'));
 
 class App {
   constructor() {
-    this.project = this.load() || unit17Project();
+    this.project = this.load() || unit18Project();
     this.level = 'ground';
     this.selection = null;
     this.tool = 'select';
@@ -642,7 +642,7 @@ class App {
         ${item('export', '<path d="M12 3v12M7 8l5-5 5 5M5 21h14"/>', 'Exportar projeto (arquivo .json)')}
         ${item('import', '<path d="M12 15V3M7 10l5 5 5-5M5 21h14"/>', 'Importar projeto (.json)')}
         ${item('rename', '<path d="M4 20h4L20 8l-4-4L4 16z"/>', 'Renomear projeto')}
-        ${item('apto', '<path d="M4 20V9l8-5 8 5v11zM10 20v-6h4v6"/>', 'Abrir planta do apto (Unidade 17)')}
+        ${item('apto', '<path d="M4 20V9l8-5 8 5v11zM10 20v-6h4v6"/>', 'Abrir planta do apto (Unidade 18)')}
         ${item('sample', '<path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4z"/>', 'Novo projeto com exemplo')}
         ${item('new', '<path d="M12 5v14M5 12h14"/>', 'Novo projeto em branco')}
         ${item('help', '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 015 0c0 2-2.5 2-2.5 4M12 17h.01"/>', 'Como usar')}
@@ -667,8 +667,8 @@ class App {
           if (n) { this.project.name = n.trim(); this.save(); }
         }
         if (m === 'apto') {
-          if (!await this.ask('Abrir a planta da Unidade 17?', { text: 'O projeto atual será substituído. Exporte antes se quiser guardar.', ok: 'Abrir', danger: true })) return;
-          this.project = unit17Project();
+          if (!await this.ask('Abrir a planta da Unidade 18?', { text: 'O projeto atual será substituído. Exporte antes se quiser guardar.', ok: 'Abrir', danger: true })) return;
+          this.project = unit18Project();
           this.undoStack = []; this.redoStack = []; this.selection = null;
           this.plan2d.endChain();
           this.save(); this.refreshAll();
@@ -797,11 +797,21 @@ class App {
 
   openCatalog() {
     const groups = [...new Set(ITEMS.map((i) => i.group))];
+    const norm = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     this.openModal(`
-      <h2>Adicionar móvel</h2>
-      ${groups.map((g) => `<div class="catalog-group"><h3>${g}</h3><div class="catalog">
-        ${ITEMS.map((it, i) => it.group === g ? `<button data-i="${i}"><span class="dot" style="background:${it.color}"></span><span>${it.name}<small>${cm(it.w)}×${cm(it.d)}×${cm(it.h)} cm</small></span></button>` : '').join('')}
-      </div></div>`).join('')}`, (el) => {
+      <div class="head"><h2>Adicionar móvel${this.level === 'upper' ? ' no mezanino' : ''}</h2><button class="btn small" data-close>Fechar</button></div>
+      <input id="catSearch" class="dialog-input" type="search" placeholder="Buscar (ex.: cama, sofá, TV, armário)">
+      <p class="muted">Depois de colocar, toque no móvel para mudar medidas, cor e girar.</p>
+      <div id="catList">
+      ${groups.map((g) => `<div class="catalog-group" data-group="${g}"><h3>${g}</h3><div class="catalog">
+        ${ITEMS.map((it, i) => it.group === g ? `<button data-i="${i}" data-q="${esc(norm(it.name + ' ' + g))}"><span class="dot" style="background:${it.color}"></span><span>${it.name}<small>${cm(it.w)}×${cm(it.d)}×${cm(it.h)} cm</small></span></button>` : '').join('')}
+      </div></div>`).join('')}
+      </div>`, (el) => {
+      $('#catSearch', el).oninput = (e) => {
+        const q = norm(e.target.value.trim());
+        $$('[data-q]', el).forEach((b) => (b.hidden = q && !b.dataset.q.includes(q)));
+        $$('.catalog-group', el).forEach((grp) => (grp.hidden = !$$('[data-q]', grp).some((b) => !b.hidden)));
+      };
       el.onclick = (e) => {
         const b = e.target.closest('[data-i]');
         if (!b) return;
